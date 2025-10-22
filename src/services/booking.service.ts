@@ -1,27 +1,36 @@
 import { CreateBookingDTO } from '../dto/booking.dto';
 import { confirmBooking, createBooking, createIdempotencyKey, finalizeIdempotencyKey, getIdempotencyKeyWithLock } from '../repository/booking.repository';
-import { BadRequestError, NotFoundError } from '../utils/errors/app.error';
+import { BadRequestError, InternalServerError, NotFoundError } from '../utils/errors/app.error';
 import  generateIdempotencyKey  from '../utils/helpers/generateIdempotencyKey'
 import {  PrismaClient } from '@prisma/client';
+import { serverConfig } from '../config';
+import { redlock } from '../config/redisConfig';
 const prisma=new PrismaClient();
 
 export async function createBookingService(createBookingDTO: CreateBookingDTO) {
-    const booking = await createBooking({
-        userId: createBookingDTO.userId,
-        hotelId: createBookingDTO.hotelId,
-        totalGuests: createBookingDTO.totalGuest,
-        bookingAmount: createBookingDTO.bookingAmt,
-    });
+    const ttl = serverConfig.LOCK_TTL;
+    const bookingResource = `hotel:${createBookingDTO.hotelId}`;
 
-    const idempotencyKey = generateIdempotencyKey();
+    try {
+        await redlock.acquire([bookingResource], ttl);
+        const booking = await createBooking({
+            userId: createBookingDTO.userId,
+            hotelId: createBookingDTO.hotelId,
+            totalGuests: createBookingDTO.totalGuest,
+            bookingAmount: createBookingDTO.bookingAmt,
+        });
 
-    await createIdempotencyKey(idempotencyKey, booking.id);
+        const idempotencyKey = generateIdempotencyKey();
 
-    return {
-        bookingId: booking.id,
-        idempotencyKey: idempotencyKey,
-    };
+        await createIdempotencyKey(idempotencyKey, booking.id);
 
+        return {
+            bookingId: booking.id,
+            idempotencyKey: idempotencyKey,
+        };
+    } catch (error) {
+        throw new InternalServerError('Failed to acquire lock for booking resource');
+    }
 }
 
 // Todo: explore the function for potential issues and improvements
