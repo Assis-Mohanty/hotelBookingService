@@ -6,18 +6,27 @@ import {  PrismaClient } from '@prisma/client';
 import { serverConfig } from '../config';
 import { redlock } from '../config/redisConfig';
 const prisma=new PrismaClient();
+import axios from 'axios'
 
 export async function createBookingService(createBookingDTO: CreateBookingDTO) {
+    const roomResponse = await axios.get(`${serverConfig.GET_ROOM_URL}${createBookingDTO.roomId}`);
+    const room = roomResponse.data.data; 
+    if (!room || !room.hotelId) {
+    throw new InternalServerError("Cannot fetch hotelId");
+    }
+
     const ttl = serverConfig.LOCK_TTL;
-    const bookingResource = `hotel:${createBookingDTO.hotelId}`;
+    const bookingResource = `hotel:${createBookingDTO.roomId}`;
 
     try {
         await redlock.acquire([bookingResource], ttl);
         const booking = await createBooking({
             userId: createBookingDTO.userId,
-            hotelId: createBookingDTO.hotelId,
+            roomId: createBookingDTO.roomId,
+            hotelId:room.hotelId,
             totalGuests: createBookingDTO.totalGuest,
             bookingAmount: createBookingDTO.bookingAmt,
+            
         });
 
         const idempotencyKey = generateIdempotencyKey();
@@ -33,7 +42,7 @@ export async function createBookingService(createBookingDTO: CreateBookingDTO) {
     }
 }
 
-// Todo: explore the function for potential issues and improvements
+
 export async function confirmBookingService(idempotencyKey: string) {
     return await prisma.$transaction(async(tx)=>{
         const idempotencyKeyData = await getIdempotencyKeyWithLock(tx,idempotencyKey);
