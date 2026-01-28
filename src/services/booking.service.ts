@@ -22,7 +22,6 @@ export async function createBookingService(createBookingDTO: CreateBookingDTO) {
         await redlock.acquire([bookingResource], ttl);
         const booking = await createBooking({
             userId: createBookingDTO.userId,
-            roomId: createBookingDTO.roomId,
             hotelId:room.hotelId,
             totalGuests: createBookingDTO.totalGuest,
             bookingAmount: createBookingDTO.bookingAmt,

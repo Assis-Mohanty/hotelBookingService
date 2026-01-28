@@ -1,42 +1,38 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "./generated/prisma"
 }
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
-model Booking {
-  id                Int           @id @default(autoincrement())
-  userId            Int
-  roomId            Int
-  hotelId           Int
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  bookingAmount     Int
-  status            BookingStatus @default(PENDING)
-  totalGuests       Int
-  idempotencyKey    IdempotencyKey?
+model booking {
+  id             Int             @id @default(autoincrement())
+  userId         Int
+  hotelId        Int
+  checkInDate    DateTime
+  checkOutDate   DateTime
+  roomCategoryId Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
+  status         booking_status  @default(PENDING)
+  totalGuests    Int
+  bookingAmount  Int
+  idempotencykey idempotencykey?
 }
 
-model IdempotencyKey {
-  id         Int      @id @default(autoincrement())
-  idemKey    String   @unique // uuid 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  finalized  Boolean  @default(false)
-  bookingId  Int      @unique
-  booking    Booking? @relation(fields: [bookingId], references: [id])
+model idempotencykey {
+  id        Int      @id @default(autoincrement())
+  idemKey   String   @unique(map: "IdempotencyKey_idemKey_key")
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+  finalized Boolean  @default(false)
+  bookingId Int      @unique(map: "IdempotencyKey_bookingId_key")
+  booking   booking  @relation(fields: [bookingId], references: [id], map: "IdempotencyKey_bookingId_fkey")
 }
 
-enum BookingStatus {
+enum booking_status {
   PENDING
   CONFIRMED
   CANCELLED
