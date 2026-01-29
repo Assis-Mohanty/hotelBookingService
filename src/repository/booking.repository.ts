@@ -6,9 +6,7 @@ import {
 } from "../utils/errors/app.error";
 import { validate as isValidUUID } from "uuid";
 import { prisma } from "../prisma/client";
-import { idempotencykey, Prisma } from "../prisma/generated/prisma/client";
-
-
+import { idempotencykey, Prisma } from "../prisma/generated/client";
 
 export async function createBooking(bookingInput: Prisma.bookingCreateInput) {
   if (!bookingInput) {
@@ -22,9 +20,10 @@ export async function createBooking(bookingInput: Prisma.bookingCreateInput) {
 }
 
 export async function createIdempotencyKey(idemKey: string, bookingId: number) {
-  const idempotencyKey = await prisma.idempotencyKey.create({
+  const idempotencyKey = await prisma.idempotencykey.create({
     data: {
       idemKey: idemKey,
+      updatedAt: new Date(),
       booking: {
         connect: {
           id: bookingId,
@@ -37,14 +36,14 @@ export async function createIdempotencyKey(idemKey: string, bookingId: number) {
 }
 
 export async function getIdempotencyKeyWithLock(
-  tx: any,
+  tx: Prisma.TransactionClient,
   idemKey: string,
 ) {
   if (!isValidUUID(idemKey)) {
     throw new InternalServerError("Invalid idempotency key format");
   }
-  const idempotencyKey: Array<idempotencykey> = await (tx as any).$queryRaw(Prisma.sql`
-        SELECT * FROM IdempotencyKey WHERE idemKey=${idemKey} FOR UPDATE`);
+  const idempotencyKey: Array<idempotencykey> = await tx.$queryRaw(Prisma.sql`
+        SELECT * FROM idempotencykey WHERE idemKey=${idemKey} FOR UPDATE`);
 
   if (!idempotencyKey || idempotencyKey.length === 0) {
     throw new NotFoundError("Idempotency Key not found");
@@ -90,18 +89,16 @@ export async function cancelBooking(bookingId: number) {
 }
 
 export async function finalizeIdempotencyKey(
-  tx: any,
-  IdemKey: string,
+  tx: Prisma.TransactionClient,
+  idemKey: string
 ) {
-  console.log("Finalizing Idempotency Key:", IdemKey);
-  const idempotencyKey = await (tx as any).idempotencyKey.update({
+  return await tx.idempotencykey.update({
     where: {
-      idemKey: IdemKey,
+      idemKey: idemKey,
     },
     data: {
       finalized: true,
     },
   });
-  console.log("Finalized Idempotency Key:", idempotencyKey);
-  return idempotencyKey;
 }
+
