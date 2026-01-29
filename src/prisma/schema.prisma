@@ -15,7 +15,7 @@ model booking {
   checkOutDate   DateTime
   roomCategoryId Int
   createdAt      DateTime        @default(now())
-  updatedAt      DateTime
+  updatedAt      DateTime?       @default(now())        
   status         booking_status  @default(PENDING)
   totalGuests    Int
   bookingAmount  Int

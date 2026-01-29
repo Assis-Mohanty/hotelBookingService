@@ -5,5 +5,5 @@ export interface CreateBookingDTO{
     bookingAmt:number
     checkInDate:string
     checkOutDate:string
-    roomCategoryId:string
+    roomCategoryId:number
 }

@@ -2,30 +2,31 @@ import { CreateBookingDTO } from '../dto/booking.dto';
 import { confirmBooking, createBooking, createIdempotencyKey, finalizeIdempotencyKey, getIdempotencyKeyWithLock } from '../repository/booking.repository';
 import { BadRequestError, InternalServerError, NotFoundError } from '../utils/errors/app.error';
 import  generateIdempotencyKey  from '../utils/helpers/generateIdempotencyKey'
-import {  PrismaClient } from '@prisma/client';
 import { serverConfig } from '../config';
 import { redlock } from '../config/redisConfig';
-const prisma=new PrismaClient();
 import axios from 'axios'
+import { prisma } from '../prisma/client';
 
 export async function createBookingService(createBookingDTO: CreateBookingDTO) {
-    const roomResponse = await axios.get(`${serverConfig.GET_ROOM_URL}${createBookingDTO.roomId}`);
+    const roomResponse = await axios.get(`${serverConfig.GET_ROOM_URL}${createBookingDTO.hotelId}`);
     const room = roomResponse.data.data; 
     if (!room || !room.hotelId) {
     throw new InternalServerError("Cannot fetch hotelId");
     }
 
     const ttl = serverConfig.LOCK_TTL;
-    const bookingResource = `hotel:${createBookingDTO.roomId}`;
+    const bookingResource = `hotel:${createBookingDTO.hotelId}`;
 
     try {
         await redlock.acquire([bookingResource], ttl);
         const booking = await createBooking({
             userId: createBookingDTO.userId,
-            hotelId:room.hotelId,
+            hotelId:createBookingDTO.hotelId,
             totalGuests: createBookingDTO.totalGuest,
             bookingAmount: createBookingDTO.bookingAmt,
-            
+            checkInDate:createBookingDTO.checkInDate,
+            checkOutDate:createBookingDTO.checkOutDate,
+            roomCategoryId:createBookingDTO.roomCategoryId
         });
 
         const idempotencyKey = generateIdempotencyKey();
@@ -43,7 +44,7 @@ export async function createBookingService(createBookingDTO: CreateBookingDTO) {
 
 
 export async function confirmBookingService(idempotencyKey: string) {
-    return await prisma.$transaction(async(tx)=>{
+    return await prisma.$transaction(async(tx:any )=>{
         const idempotencyKeyData = await getIdempotencyKeyWithLock(tx,idempotencyKey);
 
         if(!idempotencyKeyData ) {
